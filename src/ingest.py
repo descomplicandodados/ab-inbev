@@ -7,7 +7,7 @@ import psycopg2
 from psycopg2.extras import execute_batch
 from datetime import datetime
 from dotenv import load_dotenv
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, List
 from requests.exceptions import RequestException
 
@@ -63,14 +63,16 @@ def log_event(level, event_type, message, **kwargs):
 # ==================================================
 
 class Brewery(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     id: str
-    name: Optional[str]
-    brewery_type: Optional[str]
-    city: Optional[str]
-    state: Optional[str]
-    country: Optional[str]
-    latitude: Optional[str]
-    longitude: Optional[str]
+    name: Optional[str] = None
+    brewery_type: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    country: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 # ==================================================
@@ -208,8 +210,8 @@ def insert_silver(valid_records):
             "city": brewery.city,
             "state": brewery.state,
             "country": brewery.country,
-            "latitude": float(brewery.latitude) if brewery.latitude else None,
-            "longitude": float(brewery.longitude) if brewery.longitude else None,
+            "latitude": brewery.latitude,
+            "longitude": brewery.longitude,
             "anomesdia": PROCESS_DATE
         })
 
