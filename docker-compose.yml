@@ -1,46 +1,123 @@
-version: "3.11"
+version: "3.8"
 
 services:
-  postgres:
-    image: postgres:15
-    container_name: postgres_breweries
-    environment:
-      POSTGRES_DB: breweries
-      POSTGRES_USER: airflow
-      POSTGRES_PASSWORD: airflow
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
 
-  airflow:
-    build: .
-    container_name: airflow_breweries
+  postgres_airflow:
+    image: postgres:15
+    container_name: postgres_airflow
+    environment:
+      POSTGRES_USER: ${AIRFLOW_DB_USER}
+      POSTGRES_PASSWORD: ${AIRFLOW_DB_PASSWORD}
+      POSTGRES_DB: ${AIRFLOW_DB_NAME}
+    volumes:
+      - postgres_airflow_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AIRFLOW_DB_USER}"]
+      interval: 5s
+      retries: 5
+    restart: always
+
+  postgres_datalake:
+    image: postgres:15
+    container_name: postgres_datalake
+    environment:
+      POSTGRES_USER: ${DATALAKE_DB_USER}
+      POSTGRES_PASSWORD: ${DATALAKE_DB_PASSWORD}
+      POSTGRES_DB: ${DATALAKE_DB_NAME}
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_datalake_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATALAKE_DB_USER}"]
+      interval: 5s
+      retries: 5
+    restart: always
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "5050:80"
     depends_on:
-      - postgres
+      - postgres_datalake
+    restart: always
+
+  airflow-init:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: airflow_init
+    depends_on:
+      postgres_airflow:
+        condition: service_healthy
     environment:
       AIRFLOW__CORE__EXECUTOR: LocalExecutor
-      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres:5432/breweries
       AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres_airflow:5432/${AIRFLOW_DB_NAME}
+      AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
+    command: >-
+      bash -c "airflow db migrate && airflow users create -u ${AIRFLOW_ADMIN_USER} -p ${AIRFLOW_ADMIN_PASSWORD} -f Admin -l User -r Admin -e ${AIRFLOW_ADMIN_EMAIL} || true"
+    restart: on-failure
+
+  airflow-webserver:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: airflow_webserver
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres_datalake:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres_airflow:5432/${AIRFLOW_DB_NAME}
+      AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
+      DB_HOST: postgres_datalake
+      DB_PORT: 5432
+      DB_NAME: ${DATALAKE_DB_NAME}
+      DB_USER: ${DATALAKE_DB_USER}
+      DB_PASSWORD: ${DATALAKE_DB_PASSWORD}
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./src:/opt/airflow/src
-      - ./airflow/logs:/opt/airflow/logs
-      - ./.env:/opt/airflow/.env
-    ports:
-      - "8080:8080"
-    command: >
-      bash -c "
-      airflow db migrate &&
-      airflow users create
-        --username admin
-        --password admin
-        --firstname Admin
-        --lastname User
-        --role Admin
-        --email admin@example.com &&
-      airflow webserver & airflow scheduler
-      "
+      - airflow_logs:/opt/airflow/logs
+    command: airflow webserver
+    restart: always
+
+  airflow-scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: airflow_scheduler
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://${AIRFLOW_DB_USER}:${AIRFLOW_DB_PASSWORD}@postgres_airflow:5432/${AIRFLOW_DB_NAME}
+      AIRFLOW__CORE__FERNET_KEY: ${FERNET_KEY}
+      DB_HOST: postgres_datalake
+      DB_PORT: 5432
+      DB_NAME: ${DATALAKE_DB_NAME}
+      DB_USER: ${DATALAKE_DB_USER}
+      DB_PASSWORD: ${DATALAKE_DB_PASSWORD}
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./src:/opt/airflow/src
+      - airflow_logs:/opt/airflow/logs
+    command: airflow scheduler
+    restart: always
 
 volumes:
-  postgres_data:
+  postgres_airflow_data:
+  postgres_datalake_data:
+  airflow_logs:

@@ -1,7 +1,7 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime
-from brewery_pipeline.ingest import run
+from ingest import run
 
 with DAG(
     dag_id="brewery_api_pipeline",
