@@ -43,8 +43,8 @@ docker-compose up -d
 ```
 
 Access the interfaces:
-Airflow UI: http://localhost:8080 
-pgAdmin: http://localhost:5050 
+- Airflow UI: http://localhost:8080 
+- pgAdmin: http://localhost:5050 
 
 ## 📈 Pipeline Details
 The DAG brewery_full_pipeline runs daily and consists of three main tasks:
@@ -65,13 +65,15 @@ Observability
 All layers log execution metrics (total records processed and duration) into the pipeline_metrics table within the Postgres Datalake.
 
 ## 📁 Project Structure
-├── airflow/dags/      # Airflow DAG definitions
-├── src/               # ETL Scripts (bronze.py, silver.py, gold.py)
-├── tests/             # Unit and integration tests
-├── Dockerfile         # Custom Airflow image with dependencies
-├── docker-compose.yml # Infrastructure definition
-└── .env               # Environment configuration
+- ├── airflow/dags/      # Airflow DAG definitions
+- ├── src/               # ETL Scripts (bronze.py, silver.py, gold.py)
+- ├── tests/             # Unit and integration tests
+- ├── Dockerfile         # Custom Airflow image with dependencies
+- ├── docker-compose.yml # Infrastructure definition
+- └── .env               # Environment configuration
 
 ## 🧪 Running Tests
 To run the test suite, ensure your environment is active and run:
-pytest
+```
+docker compose exec airflow-webserver pytest --cov=src
+```
