@@ -2,9 +2,9 @@ from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime
 
-from bronze import run as bronze_run
-from silver import run as silver_run
-from gold import run as gold_run
+from src.bronze import run as bronze_run
+from src.silver import run as silver_run
+from src.gold import run as gold_run
 
 with DAG(
     dag_id="brewery_full_pipeline",

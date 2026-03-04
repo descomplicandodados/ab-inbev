@@ -4,3 +4,4 @@ __pycache__/
 postgres_data/
 .pytest_cache/
 .gitignore
+servers.json
